@@ -1,0 +1,32 @@
+% Compact version for main text (single-column friendly)
+% ICML-compatible: uses algorithm + algorithmic packages
+% Requires in preamble:
+%   \usepackage{algorithm}
+%   \usepackage{algorithmic}
+
+\begin{algorithm}[t]
+\caption{Research Trajectory Simulation}
+\label{alg:simulate}
+\begin{algorithmic}[1]
+\REQUIRE Literature $\mathbf{H}^{<t_0}$, times $t_0, t_f$
+\ENSURE Simulated literature $\mathbf{H}^{<t_f}$
+
+\STATE $P_{\text{daily}}, P_{\text{authors}}, P_{\text{refs}}, p_{\text{new}} \leftarrow$
+\STATE \hspace{1em} \textsc{EstimateDistributions}$(\mathbf{H}^{<t_0})$
+\STATE Initialize FAISS indexes from $\mathbf{H}^{<t_0}$
+\FOR{$t = t_0$ \TO $t_f - 1$}
+    \STATE $n \sim P_{\text{daily}}$
+    \STATE $\mathcal{S}_t \leftarrow \emptyset$
+    \FOR{$i = 1$ \TO $n$}
+        \STATE $k \sim P_{\text{authors}}$
+        \STATE $\mathbf{a} \leftarrow \textsc{GenTeam}(k, p_{\text{new}}, \mathbf{H}^{<t})$
+        \STATE $m \sim P_{\text{refs}}$
+        \STATE $\mathbf{r} \leftarrow \textsc{PredictRefs}(\mathbf{a}, m, \mathbf{H}^{<t})$
+        \STATE $(\tau, \alpha) \leftarrow \textsc{LLM}(\mathbf{r}, \mathbf{H}^{<t})$
+        \STATE $\mathcal{S}_t \leftarrow \mathcal{S}_t \cup \{\textsc{Paper}(\tau, \alpha, \mathbf{a}, \mathbf{r}, t)\}$
+    \ENDFOR
+    \STATE $\mathbf{H}^{<t+1} \leftarrow \mathbf{H}^{<t} \cup \mathcal{S}_t$
+\ENDFOR
+\RETURN $\mathbf{H}^{<t_f}$
+\end{algorithmic}
+\end{algorithm}
