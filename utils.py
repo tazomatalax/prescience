@@ -14,7 +14,7 @@ import logging
 import multiprocessing
 import numpy as np
 from tqdm import tqdm
-from typing import Any, Callable, Dict, Tuple, List
+from typing import Any
 from collections import defaultdict
 
 from gritlm import GritLM
@@ -191,109 +191,21 @@ def load_corpus(hf_repo_id="allenai/prescience", split="test", embeddings_dir=No
     return all_papers, sd2publications, all_embeddings
 
 
-####### AWS Athena #######
-
-def get_table_names(database: str):
-    import boto3
-    import awswrangler
-    boto3.setup_default_session(
-        region_name=os.getenv("AWS_DEFAULT_REGION"), 
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"), 
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
-    )
-    catalog_data = awswrangler.catalog.get_tables(database=database)
-    table_names = [table["Name"] for table in catalog_data]
-    return table_names
-
-def get_floor_table_name(date: str, table_names: list[str]):
-    floor_date = None
-    floor_name = None
-    for table_name in table_names:
-        table_date = "-".join(table_name.split("-")[1:4])
-        if ((floor_date is None) and (table_date <= date)) or \
-            ((floor_date is not None) and (table_date <= date) and (table_date > floor_date)):
-            floor_date = table_date
-            floor_name = table_name
-    return floor_name
-
-def get_ceil_table_name(date: str, table_names: list[str]):
-    ceil_date = None
-    ceil_name = None
-    for table_name in table_names:
-        table_date = "-".join(table_name.split("-")[1:4])
-        if ((ceil_date is None) and (table_date >= date)) or \
-            ((ceil_date is not None) and (table_date >= date) and (table_date < ceil_date)):
-            ceil_date = table_date
-            ceil_name = table_name
-    return ceil_name
-    
-def submit_athena_query(query, database: str):
-    import boto3
-    import awswrangler
-    boto3.setup_default_session(
-        region_name=os.getenv("AWS_DEFAULT_REGION"), 
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"), 
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
-    )
-    
-    try:
-        records = awswrangler.athena.read_sql_query(query, database).to_dict(orient="records")
-    except Exception as e:
-        logging.error(e)
-        raise e
-    return records
-    
-def submit_athena_queries_batched(ids: list, query_func: Callable[[list], str], database: str, batch_size: int, max_workers = None, progress_desc: str = "Submitting Athena queries"):
-    import boto3
-    import awswrangler
-    import concurrent.futures
-    boto3.setup_default_session(
-        region_name=os.getenv("AWS_DEFAULT_REGION"), 
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"), 
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
-    )
-    
-    def batcher(iterable, size: int):
-        iterable = list(set(iterable))  # deduplicate
-        return [iterable[i:i + size] for i in range(0, len(iterable), size)]
-    
-    def submit_query(query_func: Callable[[list], str], batch: list, database: str):
-        query = query_func(batch)
-        try:
-            records = awswrangler.athena.read_sql_query(query, database).to_dict(orient="records")
-        except Exception as e:
-            logging.error(e)
-            if len(batch) == 1:
-                return [None]
-            # reduce the batch size and retry
-            new_batch_size = max(1, len(batch) // 2)
-            logging.info(f"Reducing batch size to {new_batch_size} and retrying")
-            
-            records = []
-            records.extend(submit_query(query_func, batch[:new_batch_size], database))
-            records.extend(submit_query(query_func, batch[new_batch_size:], database))
-        return records
-    
-    records = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = []
-        for batch in batcher(ids, batch_size):
-            future = executor.submit(submit_query, query_func, batch, database)
-            futures.append(future)
-        
-        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc=progress_desc):
-            results = future.result()
-            records.extend(results)
-        
-    return records
-
-
-
 #### Semantic Scholar API ####
-def submit_s2_queries_batched(ids: list, url: str, fields: list[str], batch_size=500, sleep_time=1.1, num_retries=5, sleep_time_on_error=10, progress_desc: str = "Submitting Semantic Scholar API queries"):
+
+S2_API_BASE = "https://api.semanticscholar.org/graph/v1"
+
+def _get_s2_api_key():
+    """Return the S2 API key from the environment, or raise an error if not set."""
+    if "S2_API_KEY" not in os.environ:
+        raise RuntimeError("S2_API_KEY environment variable is not set. Get an API key at https://www.semanticscholar.org/product/api#api-key")
+    return os.environ["S2_API_KEY"]
+
+def s2_batch_lookup(ids, url, fields, batch_size=500, sleep_time=1.0, num_retries=5, sleep_time_on_error=10, progress_desc="S2 batch lookup"):
+    """POST batched requests to an S2 batch endpoint (e.g., /paper/batch, /author/batch). Returns list of result dicts (None for IDs not found)."""
     ids = list(set(ids))  # deduplicate
     records = []
-    s2_api_key = os.environ['S2_API_KEY'] if "S2_API_KEY" in os.environ else None
+    s2_api_key = _get_s2_api_key()
     for i in tqdm(range(0, len(ids), batch_size), desc=progress_desc):
         start_time = time.time()
         ids_batch = ids[i:i + batch_size]
@@ -302,13 +214,12 @@ def submit_s2_queries_batched(ids: list, url: str, fields: list[str], batch_size
                 response = requests.post(
                     url,
                     headers={"x-api-key": s2_api_key},
-                    params={'fields': ",".join(fields)},
+                    params={"fields": ",".join(fields)},
                     json={"ids": ids_batch},
                 ).json()
-                if "error" in response:
+                if isinstance(response, dict) and "error" in response:
                     raise Exception(f"Error: {response['error']}")
-                if (type(response) is str) or (type(response) is list and type(response[0]) is str):
-                    import pdb; pdb.set_trace()
+                if isinstance(response, str):
                     raise Exception(f"Error: {response}")
                 records.extend(response)
                 break
@@ -316,35 +227,182 @@ def submit_s2_queries_batched(ids: list, url: str, fields: list[str], batch_size
                 logging.error(f"Error: {e}")
                 logging.info(f"Retrying in {sleep_time_on_error} seconds")
                 time.sleep(sleep_time_on_error)
-        end_time = time.time()
-        wait_time = max(0, sleep_time - (end_time - start_time))
-        time.sleep(wait_time)  # Sleep after each batch request to avoid rate limiting
+        elapsed = time.time() - start_time
+        time.sleep(max(0, sleep_time - elapsed))
     return records
 
-def retain_useful_fields_from_arxiv_records(records):
+def s2_get_paper(paper_id, fields, endpoint_suffix=None, num_retries=5, sleep_time_on_error=10):
+    """GET a single paper from S2 API, with optional sub-endpoint and auto-pagination.
+
+    Args:
+        paper_id: e.g., "CorpusId:12345" or "ARXIV:2310.12345"
+        fields: list of field names to request
+        endpoint_suffix: "references", "citations", or "authors" (paginates automatically)
+
+    Returns:
+        Without endpoint_suffix: paper dict, or None if not found.
+        With endpoint_suffix: list of all results across pages, or None if not found.
+    """
+    s2_api_key = _get_s2_api_key()
+    headers = {"x-api-key": s2_api_key}
+    params = {"fields": ",".join(fields)}
+
+    if endpoint_suffix is None:
+        url = f"{S2_API_BASE}/paper/{paper_id}"
+        for attempt in range(num_retries):
+            try:
+                response = requests.get(url, headers=headers, params=params)
+                if response.status_code == 404:
+                    return None
+                response.raise_for_status()
+                return response.json()
+            except Exception as e:
+                if attempt < num_retries - 1:
+                    logging.error(f"Error fetching {url}: {e}")
+                    time.sleep(sleep_time_on_error)
+                else:
+                    logging.error(f"Failed after {num_retries} retries for {url}: {e}")
+                    return None
+    else:
+        url = f"{S2_API_BASE}/paper/{paper_id}/{endpoint_suffix}"
+        all_results = []
+        offset = 0
+        while True:
+            paginated_params = {**params, "offset": offset, "limit": 1000}
+            for attempt in range(num_retries):
+                try:
+                    response = requests.get(url, headers=headers, params=paginated_params)
+                    if response.status_code == 404:
+                        return None
+                    response.raise_for_status()
+                    data = response.json()
+                    all_results.extend(data.get("data", []))
+                    if "next" not in data:
+                        return all_results
+                    offset = data["next"]
+                    break
+                except Exception as e:
+                    if attempt < num_retries - 1:
+                        logging.error(f"Error fetching {url} (offset={offset}): {e}")
+                        time.sleep(sleep_time_on_error)
+                    else:
+                        logging.error(f"Failed after {num_retries} retries for {url} (offset={offset}): {e}")
+                        return all_results if all_results else None
+        return all_results
+
+def s2_get_author(author_id, fields, endpoint_suffix=None, num_retries=5, sleep_time_on_error=10):
+    """GET a single author from S2 API, with optional sub-endpoint and auto-pagination.
+
+    Args:
+        author_id: numeric S2 author ID (string)
+        fields: list of field names to request
+        endpoint_suffix: "papers" (paginates automatically)
+
+    Returns:
+        Without endpoint_suffix: author dict, or None if not found.
+        With endpoint_suffix: list of all results across pages, or None if not found.
+    """
+    s2_api_key = _get_s2_api_key()
+    headers = {"x-api-key": s2_api_key}
+    params = {"fields": ",".join(fields)}
+
+    if endpoint_suffix is None:
+        url = f"{S2_API_BASE}/author/{author_id}"
+        for attempt in range(num_retries):
+            try:
+                response = requests.get(url, headers=headers, params=params)
+                if response.status_code == 404:
+                    return None
+                response.raise_for_status()
+                return response.json()
+            except Exception as e:
+                if attempt < num_retries - 1:
+                    logging.error(f"Error fetching author {author_id}: {e}")
+                    time.sleep(sleep_time_on_error)
+                else:
+                    logging.error(f"Failed after {num_retries} retries for author {author_id}: {e}")
+                    return None
+    else:
+        url = f"{S2_API_BASE}/author/{author_id}/{endpoint_suffix}"
+        all_results = []
+        offset = 0
+        while True:
+            paginated_params = {**params, "offset": offset, "limit": 1000}
+            for attempt in range(num_retries):
+                try:
+                    response = requests.get(url, headers=headers, params=paginated_params)
+                    if response.status_code == 404:
+                        return None
+                    response.raise_for_status()
+                    data = response.json()
+                    all_results.extend(data.get("data", []))
+                    if "next" not in data:
+                        return all_results
+                    offset = data["next"]
+                    break
+                except Exception as e:
+                    if attempt < num_retries - 1:
+                        logging.error(f"Error fetching author {author_id}/{endpoint_suffix} (offset={offset}): {e}")
+                        time.sleep(sleep_time_on_error)
+                    else:
+                        logging.error(f"Failed after {num_retries} retries for author {author_id}/{endpoint_suffix} (offset={offset}): {e}")
+                        return all_results if all_results else None
+        return all_results
+
+
+#### arXiv Snapshot ####
+
+def load_arxiv_snapshot(snapshot_path):
+    """Load arXiv metadata snapshot (one JSON per line) and return dict mapping arxiv_id -> record."""
+    arxiv_papers = {}
+    with open(snapshot_path, "r") as f:
+        for line in tqdm(f, desc="Loading arXiv snapshot"):
+            record = json.loads(line)
+            arxiv_papers[record["id"]] = record
+    log(f"Loaded {len(arxiv_papers)} papers from arXiv snapshot")
+    return arxiv_papers
+
+
+#### S2 Record Processing ####
+
+def parse_s2_paper_records(records, arxiv_snapshot=None):
+    """Extract standardized paper fields from S2 API batch response records.
+
+    Filters to arXiv-only papers with valid dates. If arxiv_snapshot is provided,
+    uses it for categories and better title/abstract.
+
+    Returns list of dicts with keys: corpus_id, arxiv_id, date, title, abstract, categories.
+    """
     useful_data = []
     for record in records:
-        try:
-            try:
-                publication_date_dict = record["metadata"]["publication_date"]
-                publication_date = str(int(publication_date_dict["year"])) + "-" + \
-                    str(int(publication_date_dict["month"])).zfill(2) + "-" + \
-                    str(int(publication_date_dict["day"])).zfill(2)
-            except:
-                publication_date = str(record["created"])[:10]
-                
-            useful_record = {
-                "corpus_id": str(record["id"]),
-                "arxiv_id": record["metadata"]["external_ids"]["arxiv"].strip(),
-                "date": min(str(record["created"])[:10], publication_date),
-                "categories": record["categories"].strip().split(" "),
-                "title": record["metadata"]["title"].strip(),
-                "abstract": record["metadata"]["abstract"].strip()
-            }
-            useful_data.append(useful_record)
-        except Exception as e:
-            log(f"Error processing record: {e}")
+        if record is None:
             continue
+        if record.get("corpusId") is None:
+            continue
+        external_ids = record.get("externalIds") or {}
+        arxiv_id = external_ids.get("ArXiv")
+        if arxiv_id is None:
+            continue
+        date = record.get("publicationDate")
+        if date is None:
+            continue
+        title = (record.get("title") or "").strip()
+        abstract = (record.get("abstract") or "").strip()
+        categories = []
+        if arxiv_snapshot and arxiv_id in arxiv_snapshot:
+            snapshot_record = arxiv_snapshot[arxiv_id]
+            categories = snapshot_record["categories"].strip().split()
+            title = snapshot_record["title"].strip().replace("\n", " ")
+            abstract = snapshot_record["abstract"].strip().replace("\n", " ")
+        useful_data.append({
+            "corpus_id": str(record["corpusId"]),
+            "arxiv_id": arxiv_id,
+            "date": date,
+            "title": title,
+            "abstract": abstract,
+            "categories": categories,
+            "roles": [],
+        })
     return useful_data
 
 
