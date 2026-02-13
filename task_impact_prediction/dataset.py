@@ -26,7 +26,7 @@ def load_corpus_impact(hf_repo_id="allenai/prescience", split="test", embeddings
         load_sd2publications=False
     )
     all_papers_dict = {p["corpus_id"]: p for p in all_papers}
-    metadata = {"source": "huggingface", "repo_id": hf_repo_id, "split": split}
+    metadata = [{"source": "huggingface", "repo_id": hf_repo_id, "split": split}]
     return all_papers, all_papers_dict, embeddings, metadata
 
 

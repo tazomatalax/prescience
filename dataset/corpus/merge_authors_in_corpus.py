@@ -251,14 +251,10 @@ def download_missing_target_author_pub_history_key_references_papers_and_prune(a
     ]
     utils.log(f"Identified {len(incomplete_key_reference_corpus_ids)} target.author.publication_history papers missing key_references")
 
-    # Fetch key references from S2 batch API (with isInfluential filter)
-    s2_ids = [f"CorpusId:{cid}" for cid in incomplete_key_reference_corpus_ids]
-    records = utils.s2_batch_lookup(
-        s2_ids,
-        url=f"{utils.S2_API_BASE}/paper/batch",
-        fields=["corpusId", "references", "references.isInfluential", "references.corpusId",
-                "references.externalIds", "references.title", "references.abstract", "references.publicationDate"],
-        batch_size=args.batch_size,
+    # Fetch key references using per-paper API (batch API doesn't support isInfluential)
+    records = utils.s2_fetch_references(
+        incomplete_key_reference_corpus_ids,
+        fields=["corpusId", "externalIds", "title", "abstract", "publicationDate"],
     )
 
     # Build mapping from corpus_id to its batch record for easy lookup

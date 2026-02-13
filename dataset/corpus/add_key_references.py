@@ -10,13 +10,9 @@ def fetch_key_references(all_papers_dict, args):
     target_corpus_ids = [cid for cid, p in all_papers_dict.items() if "target" in p["roles"]]
     utils.log(f"Fetching key references for {len(target_corpus_ids)} target papers")
 
-    s2_ids = [f"CorpusId:{cid}" for cid in target_corpus_ids]
-    records = utils.s2_batch_lookup(
-        s2_ids,
-        url=f"{utils.S2_API_BASE}/paper/batch",
-        fields=["corpusId", "references", "references.isInfluential", "references.corpusId",
-                "references.externalIds", "references.title", "references.abstract", "references.publicationDate"],
-        batch_size=args.batch_size,
+    records = utils.s2_fetch_references(
+        target_corpus_ids,
+        fields=["corpusId", "externalIds", "title", "abstract", "publicationDate"],
     )
 
     key_ref_dict = {}

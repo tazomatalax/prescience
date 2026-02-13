@@ -125,7 +125,7 @@ def main():
         list(og_author_ids),
         url=f"{utils.S2_API_BASE}/author/batch",
         fields=["authorId", "papers", "papers.corpusId"],
-        batch_size=1000,
+        batch_size=100,
     )
     og2publications = {}
     for record in records:

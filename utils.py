@@ -145,6 +145,16 @@ def save_pkl(data: Any, file_path: str, metadata=None, overwrite: bool = False, 
 
 
 
+def _strip_none_values(obj):
+    """Recursively strip None values from dicts loaded from Parquet/HuggingFace.
+    Parquet requires a fixed schema so missing fields become None rather than absent keys.
+    This restores the original JSON behavior where missing fields were simply absent."""
+    if isinstance(obj, dict):
+        return {k: _strip_none_values(v) for k, v in obj.items() if v is not None}
+    if isinstance(obj, list):
+        return [_strip_none_values(item) for item in obj]
+    return obj
+
 def load_corpus(hf_repo_id="allenai/prescience", split="test", embeddings_dir=None, embedding_type=None, load_sd2publications=True):
     """
     Load corpus data from HuggingFace Hub and optionally embeddings from local disk.
@@ -168,7 +178,7 @@ def load_corpus(hf_repo_id="allenai/prescience", split="test", embeddings_dir=No
     log(f"Using split: {split}")
     all_papers = []
     for paper in dataset[split]:
-        all_papers.append(dict(paper))
+        all_papers.append(_strip_none_values(dict(paper)))
     log(f"Loaded {len(all_papers)} papers from HuggingFace")
     sd2publications = None
     if load_sd2publications:
@@ -201,7 +211,7 @@ def _get_s2_api_key():
         raise RuntimeError("S2_API_KEY environment variable is not set. Get an API key at https://www.semanticscholar.org/product/api#api-key")
     return os.environ["S2_API_KEY"]
 
-def s2_batch_lookup(ids, url, fields, batch_size=500, sleep_time=1.0, num_retries=5, sleep_time_on_error=10, progress_desc="S2 batch lookup"):
+def s2_batch_lookup(ids, url, fields, batch_size=500, sleep_time=1.5, num_retries=5, sleep_time_on_error=10, progress_desc="S2 batch lookup"):
     """POST batched requests to an S2 batch endpoint (e.g., /paper/batch, /author/batch). Returns list of result dicts (None for IDs not found)."""
     ids = list(set(ids))  # deduplicate
     records = []
@@ -217,16 +227,32 @@ def s2_batch_lookup(ids, url, fields, batch_size=500, sleep_time=1.0, num_retrie
                     params={"fields": ",".join(fields)},
                     json={"ids": ids_batch},
                 ).json()
-                if isinstance(response, dict) and "error" in response:
-                    raise Exception(f"Error: {response['error']}")
-                if isinstance(response, str):
-                    raise Exception(f"Error: {response}")
+                if not isinstance(response, list):
+                    raise Exception(f"Unexpected response: {str(response)[:200]}")
                 records.extend(response)
                 break
             except Exception as e:
                 logging.error(f"Error: {e}")
                 logging.info(f"Retrying in {sleep_time_on_error} seconds")
                 time.sleep(sleep_time_on_error)
+        elapsed = time.time() - start_time
+        time.sleep(max(0, sleep_time - elapsed))
+    return records
+
+def s2_fetch_references(corpus_ids, fields, sleep_time=1.5, num_retries=5, sleep_time_on_error=10, progress_desc="Fetching references"):
+    """Fetch references for papers using per-paper API calls. Returns records in the same format as s2_batch_lookup with /paper/batch would (list of dicts with 'corpusId' and 'references' keys), so callers can use either interchangeably."""
+    ref_fields = fields if "isInfluential" in fields else ["isInfluential"] + fields
+    records = []
+    for cid in tqdm(corpus_ids, desc=progress_desc):
+        start_time = time.time()
+        refs_raw = s2_get_paper(f"CorpusId:{cid}", ref_fields, endpoint_suffix="references", num_retries=num_retries, sleep_time_on_error=sleep_time_on_error)
+        refs = []
+        if refs_raw is not None:
+            for ref in refs_raw:
+                cited = ref.get("citedPaper") or {}
+                cited["isInfluential"] = ref.get("isInfluential", False)
+                refs.append(cited)
+        records.append({"corpusId": int(cid), "references": refs})
         elapsed = time.time() - start_time
         time.sleep(max(0, sleep_time - elapsed))
     return records

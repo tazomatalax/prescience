@@ -293,9 +293,9 @@ def main():
                 })
 
                 if len(predictions) % args.save_every == 0:
-                    utils.save_json(predictions, output_path, metadata=utils.update_metadata({}, args), overwrite=True)
+                    utils.save_json(predictions, output_path, metadata=utils.update_metadata([], args), overwrite=True)
 
-    utils.save_json(predictions, output_path, metadata=utils.update_metadata({}, args), overwrite=True)
+    utils.save_json(predictions, output_path, metadata=utils.update_metadata([], args), overwrite=True)
 
 
 if __name__ == "__main__":

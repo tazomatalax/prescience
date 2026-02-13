@@ -59,7 +59,7 @@ def download_publication_histories_for_target_authors(all_papers_dict, args):
         list(all_author_ids),
         url=f"{utils.S2_API_BASE}/author/batch",
         fields=["authorId", "papers", "papers.corpusId"],
-        batch_size=1000,
+        batch_size=100,
     )
 
     author_id_to_corpus_ids = {}
@@ -170,13 +170,9 @@ def download_and_attach_key_references_and_prune(all_papers_dict, args):
     ]
     utils.log(f"Fetching key references for {len(pub_history_corpus_ids)} publication history papers")
 
-    s2_ids = [f"CorpusId:{cid}" for cid in pub_history_corpus_ids]
-    records = utils.s2_batch_lookup(
-        s2_ids,
-        url=f"{utils.S2_API_BASE}/paper/batch",
-        fields=["corpusId", "references", "references.isInfluential", "references.corpusId",
-                "references.externalIds", "references.title", "references.abstract", "references.publicationDate"],
-        batch_size=args.batch_size,
+    records = utils.s2_fetch_references(
+        pub_history_corpus_ids,
+        fields=["corpusId", "externalIds", "title", "abstract", "publicationDate"],
     )
 
     # Build mapping from corpus_id to its batch record for easy lookup

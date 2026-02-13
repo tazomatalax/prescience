@@ -61,6 +61,7 @@ def main():
     parser.add_argument("--end_date", type=str, default="2025-10-01", help="End date for target papers (YYYY-MM-DD)")
     parser.add_argument("--categories", nargs="+", default=["cs.CL", "cs.LG", "cs.AI", "cs.ML", "cs.CV", "cs.IR", "cs.NE"], help="arXiv categories to include")
     parser.add_argument("--output_dir", type=str, default="data/corpus/test", help="Output directory for target papers")
+    parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output")
     args = parser.parse_args()
 
     arxiv_snapshot = utils.load_arxiv_snapshot(args.arxiv_snapshot_path)
@@ -83,7 +84,7 @@ def main():
     utils.log(f"Retained {len(all_papers_records)} unique target papers after deduplication")
 
     all_papers_path = os.path.join(args.output_dir, "all_papers.stage01.json")
-    utils.save_json(all_papers_records, all_papers_path, utils.update_metadata([], args))
+    utils.save_json(all_papers_records, all_papers_path, utils.update_metadata([], args), overwrite=args.overwrite)
 
 
 if __name__ == "__main__":
