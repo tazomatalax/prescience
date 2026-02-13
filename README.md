@@ -15,6 +15,9 @@
 
 Can AI systems trained on the scientific record up to a fixed point in time forecast the scientific advances that follow? PreScience decomposes the research process into four interdependent generative tasks and evaluates models on a curated dataset of 98,000 AI-related arXiv papers (Oct 2023 -- Oct 2025) with disambiguated author identities, temporally aligned scholarly metadata, and a structured graph of 502,000 total papers. We decompose the prediction of a single scientific advance into the following four interdependent prediction problems:
 
+<img width="721" height="326" alt="image" src="https://github.com/user-attachments/assets/1698f74b-fd49-4312-a39c-5429b362a3ed" />
+
+
 | Task | Description | Metrics |
 |------|-------------|---------|
 | Collaborator Prediction | Predict future co-authors given research context | Precision, Recall, F1, nDCG |
