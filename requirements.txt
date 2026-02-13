@@ -10,6 +10,7 @@ gritlm>=1.0.1
 openai
 xgboost
 seaborn
+hf_transfer
 hyperopt
 networkx
 openpyxl
