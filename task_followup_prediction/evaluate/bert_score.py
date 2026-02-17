@@ -29,7 +29,8 @@ def main():
     """Score generated title/abstract pairs against references using BERTScore."""
     parser = argparse.ArgumentParser(description="Score generated title+abstract pairs against references using BERTScore")
     parser.add_argument("--input_path", required=True, help="Path to JSON file with generated title/abstract pairs")
-    parser.add_argument("--corpus_path", default="data/corpus/test/all_papers.json", help="Path to corpus JSON containing reference title/abstract pairs")
+    parser.add_argument("--hf_repo_id", type=str, default="allenai/prescience", help="HuggingFace repo ID for dataset")
+    parser.add_argument("--split", type=str, default="test", choices=["train", "test"], help="Dataset split to use")
     parser.add_argument("--output_dir", default="data/task_followup_prediction/test/bert_scored", help="Directory to save the scored JSON output")
     parser.add_argument("--model", default="microsoft/deberta-large-mnli", help="Model to use for BERTScore")
     parser.add_argument("--batch_size", type=int, default=64)
@@ -43,8 +44,8 @@ def main():
     if args.max_records is not None:
         generations = generations[:args.max_records]
 
-    utils.log(f"Loading corpus from {args.corpus_path}")
-    all_papers, _ = utils.load_json(args.corpus_path)
+    utils.log(f"Loading corpus from HuggingFace repo {args.hf_repo_id} (split={args.split})")
+    all_papers, _, _ = utils.load_corpus(hf_repo_id=args.hf_repo_id, split=args.split, embedding_type=None, load_sd2publications=False)
     all_papers_dict = {p["corpus_id"]: p for p in all_papers}
 
     # Initialize BERTScorer model

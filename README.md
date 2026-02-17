@@ -43,7 +43,7 @@ pip install -r requirements.txt
 - Embedding-based task baselines and `multiturn/simulate.py` require precomputed embeddings (see [Computing Embeddings](#computing-embeddings))
 - `export OPENAI_API_KEY=<your_key>` — required for GPT baselines, LACERScore evaluation, and gold paraphrase generation
 - `export ANTHROPIC_API_KEY=<your_key>` — required for Claude baselines
-- SPECTER2 and Qwen3 have dependency conflicts with the main environment; use `requirements_specter2.txt` and `requirements_qwen3.txt` in separate environments
+- SPECTER2 has dependency conflicts with the main environment; use `requirements_specter2.txt` in a separate environment
 
 
 ## Codebase Structure
@@ -53,7 +53,7 @@ prescience/
 ├── task_coauthor_prediction/     # Collaborator prediction baselines, evaluation and analyses
 ├── task_priorwork_prediction/    # Prior work selection baselines, evaluation and analyses
 ├── task_followup_prediction/
-│   ├── generate/                 # Contribution generation baselines (GPT, Claude, OLMo, LLaMA, Qwen)
+│   ├── generate/                 # Contribution generation baselines (GPT, Claude, OLMo, LLaMA)
 │   └── evaluate/                 # LACERScore, BERTScore, ROUGE-L evaluation
 │   └── analysis/
 ├── task_impact_prediction/       # Impact prediction baselines, evaluation and analyses

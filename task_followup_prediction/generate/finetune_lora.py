@@ -19,7 +19,6 @@ from task_followup_prediction.templates.fewshot_examples import FEWSHOT_EXAMPLES
 
 MODEL_CONFIGS = {
     "olmo3-7b": {"model_name": "allenai/Olmo-3-7B-Instruct", "target_modules": ["q_proj", "v_proj", "k_proj", "o_proj"]},
-    "qwen3-8b": {"model_name": "Qwen/Qwen3-8B", "target_modules": ["q_proj", "v_proj", "k_proj", "o_proj"]},
     "llama3.1-8b": {"model_name": "meta-llama/Llama-3.1-8B-Instruct", "target_modules": ["q_proj", "v_proj", "k_proj", "o_proj"]},
 }
 
@@ -53,10 +52,7 @@ def create_lora_config(model_key, lora_r, lora_alpha):
 
 def tokenize_instance(example, tokenizer, model_key, max_length=4096):
     """Tokenize a single training instance using the model's chat template."""
-    template_kwargs = {"tokenize": False, "add_generation_prompt": False}
-    if model_key == "qwen3-8b":
-        template_kwargs["enable_thinking"] = False
-    formatted = tokenizer.apply_chat_template(example["messages"], **template_kwargs)
+    formatted = tokenizer.apply_chat_template(example["messages"], tokenize=False, add_generation_prompt=False)
     tokenized = tokenizer(formatted, truncation=True, max_length=max_length, padding=False, return_tensors=None)
     tokenized["labels"] = tokenized["input_ids"].copy()
     return tokenized

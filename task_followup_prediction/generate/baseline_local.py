@@ -13,7 +13,6 @@ from task_followup_prediction.templates.fewshot_examples import FEWSHOT_EXAMPLES
 
 MODEL_CONFIGS = {
     "olmo3-7b": "allenai/Olmo-3-7B-Instruct",
-    "qwen3-8b": "Qwen/Qwen3-8B",
     "llama3.1-8b": "meta-llama/Llama-3.1-8B-Instruct",
 }
 
@@ -73,10 +72,7 @@ def parse_response(answer):
 
 def generate_batch(model, tokenizer, batch_messages, model_key, max_new_tokens=1000):
     """Generate responses for a batch of message lists."""
-    template_kwargs = {"tokenize": False, "add_generation_prompt": True}
-    if model_key == "qwen3-8b":
-        template_kwargs["enable_thinking"] = False
-    texts = [tokenizer.apply_chat_template(msgs, **template_kwargs) for msgs in batch_messages]
+    texts = [tokenizer.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True) for msgs in batch_messages]
     inputs = tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=4096).to(model.device)
 
     stop_strings = ["Background Paper", "Paper 1:", "Paper 2:", "\n\n\n\n"]
