@@ -98,6 +98,8 @@ python3 -m task_coauthor_prediction.evaluate --predictions_path data/task_coauth
 
 Table 2 results are reported across `--embedding_type` values: `gtr`, `specter2`, `grit`. The `--seed_author_type` flag defaults to `first` (matching Table 2); other options (`last`, `random`, `highest_h_index`) are explored in Appendix C.1.
 
+The `task_coauthor_prediction/analysis/` directory contains the scripts used to generate the paper's analysis plots (e.g., nDCG vs. experience, R-Precision by familiarity). These expect the full set of baseline predictions with `grit` embeddings and may not run with partial inputs.
+
 ### Prior Work Selection
 
 ```bash
@@ -125,6 +127,8 @@ python3 -m task_priorwork_prediction.evaluate --predictions_path data/task_prior
 ```
 
 Table 2 results are reported across `--embedding_type` values: `gtr`, `specter2`, `grit`.
+
+The `task_priorwork_prediction/analysis/` directory contains the scripts used to generate the paper's analysis plots (e.g., nDCG vs. experience, R-Precision by familiarity). These expect the full set of baseline predictions with `grit` embeddings and may not run with partial inputs.
 
 ### Contribution Generation
 
@@ -191,6 +195,8 @@ python3 -m task_followup_prediction.evaluate.bert_score --input_path <generation
 python3 -m task_followup_prediction.evaluate.rouge_score --input_path <generations_file>
 ```
 
+The `task_followup_prediction/analysis/` directory contains the scripts used to generate the paper's analysis plots (e.g., LACER by category, LACER vs. citations). These require LACER-scored generation files as input.
+
 ### Impact Prediction
 
 **Feature-to-flag mapping** (for understanding Table 4 feature set combinations):
@@ -222,6 +228,8 @@ python3 -m task_impact_prediction.evaluate --predictions_path data/task_impact_p
 ```
 
 Replace `grit` with `gtr` or `specter2` to reproduce other embedding rows in Table 4.
+
+The `task_impact_prediction/analysis/` directory contains the scripts used to generate the paper's analysis plots (e.g., prediction scatter, SHAP analysis). These require evaluation output files as input.
 
 
 ## Computing Embeddings
@@ -297,7 +305,7 @@ Other available analysis scripts follow the same compute→plot pattern:
 
 ## Building the Dataset from Scratch
 
-Most users should use the [HuggingFace dataset](https://huggingface.co/datasets/allenai/prescience) directly. The dataset we released was built using internal versions of the Semantic Scholar API for efficiency; the scripts below use the equivalent public APIs, but results may vary slightly.
+Most users should use the [HuggingFace dataset](https://huggingface.co/datasets/allenai/prescience) directly. The dataset we released was built using internal versions of the Semantic Scholar API for efficiency; the scripts below use the equivalent public APIs, but results may vary slightly. Due to public API rate limits, these scripts may take a very long time to complete. If you are serious about building a similar dataset, please contact us.
 
 To rebuild from scratch, you need:
 - **S2 API key**: Get one at https://www.semanticscholar.org/product/api#api-key and set `export S2_API_KEY=<your_key>`
