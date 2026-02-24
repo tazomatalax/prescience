@@ -7,7 +7,6 @@ import argparse
 import numpy as np
 import torch
 import optuna
-import wandb
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer, DataCollatorForSeq2Seq
 from peft import LoraConfig, get_peft_model, TaskType
 from datasets import Dataset
@@ -86,7 +85,7 @@ def sync_hyperparams(lr, lora_r):
     return params[0].item(), int(params[1].item())
 
 
-def objective(trial, train_dataset, val_dataset, model_key, tokenizer, output_dir, wandb_project, batch_size, gradient_accumulation_steps, num_epochs):
+def objective(trial, train_dataset, val_dataset, model_key, tokenizer, output_dir, batch_size, gradient_accumulation_steps, num_epochs):
     """Optuna objective function for hyperparameter search."""
     if is_main_process():
         lr = trial.suggest_float("learning_rate", HP_SEARCH_SPACE["learning_rate"][0], HP_SEARCH_SPACE["learning_rate"][1], log=True)
@@ -96,9 +95,6 @@ def objective(trial, train_dataset, val_dataset, model_key, tokenizer, output_di
     lr, lora_r = sync_hyperparams(lr, lora_r)
     lora_alpha = 2 * lora_r
 
-    if is_main_process():
-        wandb.init(project=wandb_project, name=f"trial_{trial.number}", config={"model": model_key, "learning_rate": lr, "lora_r": lora_r, "lora_alpha": lora_alpha, "num_epochs": num_epochs}, reinit=True)
-
     lora_config = create_lora_config(model_key, lora_r, lora_alpha)
     model, _ = load_model_and_tokenizer(model_key, lora_config)
 
@@ -106,7 +102,7 @@ def objective(trial, train_dataset, val_dataset, model_key, tokenizer, output_di
     training_args = TrainingArguments(
         output_dir=trial_output_dir, num_train_epochs=num_epochs, per_device_train_batch_size=batch_size, gradient_accumulation_steps=gradient_accumulation_steps,
         learning_rate=lr, bf16=True, logging_steps=10, eval_strategy="epoch", save_strategy="epoch",
-        load_best_model_at_end=True, metric_for_best_model="eval_loss", greater_is_better=False, report_to="wandb", dataloader_num_workers=4,
+        load_best_model_at_end=True, metric_for_best_model="eval_loss", greater_is_better=False, report_to="none", dataloader_num_workers=4,
     )
 
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
@@ -116,9 +112,6 @@ def objective(trial, train_dataset, val_dataset, model_key, tokenizer, output_di
     eval_results = trainer.evaluate()
     val_loss = eval_results["eval_loss"]
 
-    if is_main_process():
-        wandb.finish()
-
     del model, trainer
     torch.cuda.empty_cache()
     gc.collect()
@@ -126,10 +119,10 @@ def objective(trial, train_dataset, val_dataset, model_key, tokenizer, output_di
     return val_loss
 
 
-def run_hp_search(train_dataset, val_dataset, model_key, tokenizer, output_dir, n_trials, wandb_project, batch_size, gradient_accumulation_steps, num_epochs):
+def run_hp_search(train_dataset, val_dataset, model_key, tokenizer, output_dir, n_trials, batch_size, gradient_accumulation_steps, num_epochs):
     """Run Optuna hyperparameter search."""
     study = optuna.create_study(direction="minimize", study_name=f"lora_{model_key}")
-    study.optimize(lambda trial: objective(trial, train_dataset, val_dataset, model_key, tokenizer, output_dir, wandb_project, batch_size, gradient_accumulation_steps, num_epochs), n_trials=n_trials, show_progress_bar=True)
+    study.optimize(lambda trial: objective(trial, train_dataset, val_dataset, model_key, tokenizer, output_dir, batch_size, gradient_accumulation_steps, num_epochs), n_trials=n_trials, show_progress_bar=True)
 
     utils.log(f"Best trial: {study.best_trial.number}")
     utils.log(f"Best params: {study.best_params}")
@@ -138,11 +131,9 @@ def run_hp_search(train_dataset, val_dataset, model_key, tokenizer, output_dir, 
     return study.best_params
 
 
-def train_final_model(train_dataset, val_dataset, model_key, tokenizer, best_params, output_dir, wandb_project, batch_size, gradient_accumulation_steps, num_epochs):
+def train_final_model(train_dataset, val_dataset, model_key, tokenizer, best_params, output_dir, batch_size, gradient_accumulation_steps, num_epochs):
     """Train final model with best hyperparameters."""
     lora_alpha = 2 * best_params["lora_r"]
-    if is_main_process():
-        wandb.init(project=wandb_project, name=f"final_{model_key}", config={"model": model_key, "lora_alpha": lora_alpha, "num_epochs": num_epochs, **best_params})
 
     lora_config = create_lora_config(model_key, best_params["lora_r"], lora_alpha)
     model, _ = load_model_and_tokenizer(model_key, lora_config)
@@ -151,7 +142,7 @@ def train_final_model(train_dataset, val_dataset, model_key, tokenizer, best_par
     training_args = TrainingArguments(
         output_dir=final_output_dir, num_train_epochs=num_epochs, per_device_train_batch_size=batch_size, gradient_accumulation_steps=gradient_accumulation_steps,
         learning_rate=best_params["learning_rate"], bf16=True, logging_steps=10, eval_strategy="epoch", save_strategy="epoch",
-        load_best_model_at_end=True, metric_for_best_model="eval_loss", greater_is_better=False, report_to="wandb",
+        load_best_model_at_end=True, metric_for_best_model="eval_loss", greater_is_better=False, report_to="none",
     )
 
     data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
@@ -163,8 +154,6 @@ def train_final_model(train_dataset, val_dataset, model_key, tokenizer, best_par
     model.save_pretrained(adapter_path)
     utils.log(f"Saved adapter to {adapter_path}")
 
-    if is_main_process():
-        wandb.finish()
     return adapter_path
 
 
@@ -182,7 +171,6 @@ def main():
     parser.add_argument("--num_train_epochs", type=int, default=3, help="Training epochs")
     parser.add_argument("--batch_size", type=int, default=4, help="Per-device train batch size")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=2, help="Gradient accumulation steps (effective batch = batch_size * grad_accum)")
-    parser.add_argument("--wandb_project", type=str, default="scipred-followup-lora", help="Wandb project name")
     parser.add_argument("--reasoning_trace", type=str, default="generic", choices=["generic", "none"], help="Reasoning trace format: 'generic' includes placeholder reasoning, 'none' omits reasoning")
     args = parser.parse_args()
 
@@ -218,10 +206,10 @@ def main():
         utils.log(f"Using provided hyperparameters: {best_params} (lora_alpha = 2 * lora_r = {2 * args.lora_r}, epochs = {args.num_train_epochs})")
     else:
         utils.log(f"Running hyperparameter search with {args.n_trials} trials ({args.num_train_epochs} epochs per trial)")
-        best_params = run_hp_search(train_dataset, val_dataset, args.model, tokenizer, model_output_dir, args.n_trials, args.wandb_project, args.batch_size, args.gradient_accumulation_steps, args.num_train_epochs)
+        best_params = run_hp_search(train_dataset, val_dataset, args.model, tokenizer, model_output_dir, args.n_trials, args.batch_size, args.gradient_accumulation_steps, args.num_train_epochs)
 
     utils.log("Training final model with best hyperparameters")
-    adapter_path = train_final_model(train_dataset, val_dataset, args.model, tokenizer, best_params, model_output_dir, args.wandb_project, args.batch_size, args.gradient_accumulation_steps, args.num_train_epochs)
+    adapter_path = train_final_model(train_dataset, val_dataset, args.model, tokenizer, best_params, model_output_dir, args.batch_size, args.gradient_accumulation_steps, args.num_train_epochs)
 
     result = {"model": args.model, "best_params": best_params, "adapter_path": adapter_path, "train_instances": len(train_instances), "val_instances": len(val_instances)}
     utils.save_json([result], os.path.join(model_output_dir, "training_summary.json"), metadata=utils.update_metadata(metadata, args))

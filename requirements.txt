@@ -28,5 +28,4 @@ torch
 torchvision
 tqdm
 transformers>=4.43.0
-wandb
 xgboost
