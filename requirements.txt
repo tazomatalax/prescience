@@ -27,5 +27,5 @@ statsmodels
 torch
 torchvision
 tqdm
-transformers>=4.43.0
+transformers>=4.43.0,<4.54.0
 xgboost
