@@ -345,6 +345,13 @@ def create_initial_state(args):
     sd2publications = copy.deepcopy(sd2publications)
 
     all_papers_dict = {paper["corpus_id"]: paper for paper in all_papers}
+
+    # Filter sd2publications to only papers with authors and key_references
+    # (HuggingFace Parquet round-tripping can strip None-valued fields that the
+    # original pipeline's refine_sd2publications_after_pruning did not catch)
+    for author_id, pub_ids in sd2publications.items():
+        if pub_ids is not None:
+            sd2publications[author_id] = [pid for pid in pub_ids if pid in all_papers_dict and "authors" in all_papers_dict[pid] and "key_references" in all_papers_dict[pid]]
     target_papers = utils.filter_by_roles(all_papers, ["target"])
     synthetic_papers = utils.filter_by_roles(all_papers, ["synthetic"])
     final_date = max(p["date"] for p in all_papers)
@@ -459,7 +466,7 @@ def fold_in_papers(state, new_papers, date, args):
                     pub_paper = all_papers_dict[pub_cid]
                     if "synthetic.author.publication_history" not in pub_paper["roles"]:
                         pub_paper["roles"] = sorted(list(set(pub_paper["roles"] + ["synthetic.author.publication_history"])))
-                    for pub_ref in pub_paper.get("key_references", []):
+                    for pub_ref in pub_paper["key_references"]:
                         pub_ref_cid = pub_ref["corpus_id"]
                         if pub_ref_cid in all_papers_dict:
                             pub_ref_paper = all_papers_dict[pub_ref_cid]
