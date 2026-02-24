@@ -69,7 +69,7 @@ def load_natural_corpus_and_embeddings(hf_repo_id, split, embeddings_dir, embedd
 
 def load_synthetic_corpus_and_embeddings(synthetic_dir, embeddings_dir, embedding_type):
     """Load synthetic corpus and embeddings from local storage."""
-    synthetic_path = os.path.join("data/multiturn", synthetic_dir, "all_papers.json")
+    synthetic_path = os.path.join(synthetic_dir, "all_papers.json")
     all_papers, _ = utils.load_json(synthetic_path)
     all_papers_dict = {p["corpus_id"]: p for p in all_papers}
     embeddings_path = os.path.join(embeddings_dir, f"all_papers.{embedding_type}_embeddings.pkl")

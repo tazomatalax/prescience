@@ -13,7 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description="Compute k-NN in prior corpus for novelty analysis.")
     parser.add_argument("--hf_repo_id", type=str, default="allenai/prescience", help="HuggingFace repo (natural corpus)")
     parser.add_argument("--split", type=str, default="test", choices=["train", "test"], help="Dataset split")
-    parser.add_argument("--synthetic_dir", type=str, default="simulated", help="Synthetic corpus directory under data/multiturn/")
+    parser.add_argument("--synthetic_dir", type=str, default="data/multiturn/simulated", help="Path to synthetic corpus directory")
     parser.add_argument("--compute_on", type=str, required=True, choices=["natural", "synthetic"], help="Which corpus to compute neighbors on")
     parser.add_argument("--embeddings_dir", type=str, required=True, help="Directory with embedding files")
     parser.add_argument("--role", type=str, required=True, help="Role to filter papers by (e.g., target, synthetic)")
@@ -30,7 +30,7 @@ def main():
     np.random.seed(args.seed)
 
     if args.compute_on == "synthetic":
-        utils.log(f"Loading synthetic corpus from data/multiturn/{args.synthetic_dir}")
+        utils.log(f"Loading synthetic corpus from {args.synthetic_dir}")
         all_papers_dict, embeddings_dict = load_synthetic_corpus_and_embeddings(args.synthetic_dir, args.embeddings_dir, args.embedding_type)
     else:
         utils.log(f"Loading natural corpus from HuggingFace (repo={args.hf_repo_id}, split={args.split})")
@@ -43,8 +43,8 @@ def main():
     ref_prior_size = None
     ref_growth_per_bucket = None
     if args.compute_on == "natural":
-        utils.log(f"Loading synthetic reference corpus from data/multiturn/{args.synthetic_dir}")
-        synthetic_path = os.path.join("data/multiturn", args.synthetic_dir, "all_papers.json")
+        utils.log(f"Loading synthetic reference corpus from {args.synthetic_dir}")
+        synthetic_path = os.path.join(args.synthetic_dir, "all_papers.json")
         ref_papers, _ = utils.load_json(synthetic_path)
         ref_papers_dict = {p["corpus_id"]: p for p in ref_papers}
         ref_targets = filter_by_role(ref_papers_dict, "synthetic")

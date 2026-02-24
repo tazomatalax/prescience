@@ -208,7 +208,7 @@ def main():
     parser = argparse.ArgumentParser(description="Classify synthetic target papers into primary arXiv categories using OpenAI.")
     parser.add_argument("--hf_repo_id", type=str, default="allenai/prescience", help="HuggingFace repo (natural corpus)")
     parser.add_argument("--split", type=str, default="test", choices=["train", "test"], help="Dataset split")
-    parser.add_argument("--synthetic_dir", type=str, default="simulated", help="Synthetic experiment directory under data/multiturn/")
+    parser.add_argument("--synthetic_dir", type=str, default="data/multiturn/simulated", help="Path to synthetic corpus directory")
     parser.add_argument("--output_path", type=str, default=None, help="Path to save corpus_id->primary category JSON mapping")
     parser.add_argument("--model", type=str, default="gpt-5-2025-08-07", help="OpenAI chat model name")
     parser.add_argument("--max_workers", type=int, default=512, help="Number of parallel workers for OpenAI requests")
@@ -220,7 +220,7 @@ def main():
     args = parser.parse_args()
 
     all_papers_nat, _, _ = utils.load_corpus(hf_repo_id=args.hf_repo_id, split=args.split, embeddings_dir=None, embedding_type=None, load_sd2publications=False)
-    all_papers_syn = utils.load_json(f"data/multiturn/{args.synthetic_dir}/all_papers.json")[0]
+    all_papers_syn = utils.load_json(os.path.join(args.synthetic_dir, "all_papers.json"))[0]
 
     natural_targets = [paper for paper in all_papers_nat if "roles" in paper and "target" in paper["roles"]]
     synthetic_targets = [paper for paper in all_papers_syn if "roles" in paper and "synthetic" in paper["roles"]]
@@ -265,7 +265,7 @@ def main():
     if args.output_path:
         syn_output_path = args.output_path
     else:
-        syn_output_path = os.path.join("data/multiturn", args.synthetic_dir, f"synthetic_primary_categories_{args.model}{sampled_suffix}.json")
+        syn_output_path = os.path.join(args.synthetic_dir, f"synthetic_primary_categories_{args.model}{sampled_suffix}.json")
     utils.save_json(syn_predictions, syn_output_path, metadata=metadata, overwrite=True)
     print(f"Wrote {len(syn_predictions)} synthetic predictions to {syn_output_path}")
 
@@ -274,7 +274,7 @@ def main():
         nat_jobs = build_jobs(natural_targets, system_prompt, shots, fewshot_ids, "Preparing natural classification jobs")
         if nat_jobs:
             nat_predictions = classify_jobs(nat_jobs, client, args.model, labels, args.max_workers, desc="Classifying natural targets")
-            nat_output_path = os.path.join("data/multiturn", args.synthetic_dir, f"natural_primary_categories_{args.model}{sampled_suffix}.json")
+            nat_output_path = os.path.join(args.synthetic_dir, f"natural_primary_categories_{args.model}{sampled_suffix}.json")
             utils.save_json(nat_predictions, nat_output_path, metadata=metadata, overwrite=True)
             print(f"Wrote {len(nat_predictions)} natural predictions to {nat_output_path}")
 

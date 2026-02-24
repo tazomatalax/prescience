@@ -80,7 +80,7 @@ def main():
     parser = argparse.ArgumentParser(description="Plot topic proportions for natural and synthetic target papers.")
     parser.add_argument("--hf_repo_id", type=str, default="allenai/prescience", help="HuggingFace repo (natural corpus)")
     parser.add_argument("--split", type=str, default="test", choices=["train", "test"], help="Dataset split")
-    parser.add_argument("--synthetic_dir", type=str, default="simulated", help="Synthetic experiment directory under data/multiturn/")
+    parser.add_argument("--synthetic_dir", type=str, default="data/multiturn/simulated", help="Path to synthetic corpus directory")
     parser.add_argument("--model", type=str, default="gpt-5-2025-08-07", help="Model name used for synthetic classifications")
     parser.add_argument("--predictions_path", type=str, default=None, help="Optional explicit path to synthetic topic predictions JSON")
     parser.add_argument("--top_k_topics", type=int, default=6, help="Number of most common topics to display (plus 'other')")
@@ -89,7 +89,7 @@ def main():
     args = parser.parse_args()
 
     all_papers_nat, _, _ = utils.load_corpus(hf_repo_id=args.hf_repo_id, split=args.split, embeddings_dir=None, embedding_type=None, load_sd2publications=False)
-    all_papers_syn = utils.load_json(f"data/multiturn/{args.synthetic_dir}/all_papers.json")[0]
+    all_papers_syn = utils.load_json(os.path.join(args.synthetic_dir, "all_papers.json"))[0]
 
     all_papers_nat_dict = {paper["corpus_id"]: paper for paper in all_papers_nat}
     all_papers_syn_dict = {paper["corpus_id"]: paper for paper in all_papers_syn}
@@ -103,7 +103,7 @@ def main():
     sampled_suffix = "_sampled" if args.sampled else ""
 
     if args.sampled:
-        nat_predictions_path = os.path.join("data/multiturn", args.synthetic_dir, f"natural_primary_categories_{args.model}{sampled_suffix}.json")
+        nat_predictions_path = os.path.join(args.synthetic_dir, f"natural_primary_categories_{args.model}{sampled_suffix}.json")
         natural_topic_lookup = load_synthetic_topics(nat_predictions_path)
         target_nat = {cid: paper for cid, paper in target_nat.items() if cid in natural_topic_lookup}
         print(f"Using LLM-classified topics for {len(target_nat)} natural papers.")
@@ -113,7 +113,7 @@ def main():
     if args.predictions_path:
         predictions_path = args.predictions_path
     else:
-        predictions_path = os.path.join("data/multiturn", args.synthetic_dir, f"synthetic_primary_categories_{args.model}{sampled_suffix}.json")
+        predictions_path = os.path.join(args.synthetic_dir, f"synthetic_primary_categories_{args.model}{sampled_suffix}.json")
 
     synthetic_topic_lookup = load_synthetic_topics(predictions_path)
     if args.sampled:

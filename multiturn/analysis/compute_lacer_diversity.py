@@ -76,7 +76,7 @@ def main():
     parser = argparse.ArgumentParser(description="Compute LACER scores for diversity analysis from pre-computed neighbors.")
     parser.add_argument("--hf_repo_id", type=str, default="allenai/prescience", help="HuggingFace repo (natural corpus)")
     parser.add_argument("--split", type=str, default="test", choices=["train", "test"], help="Dataset split")
-    parser.add_argument("--synthetic_dir", type=str, default="simulated", help="Synthetic corpus directory under data/multiturn/")
+    parser.add_argument("--synthetic_dir", type=str, default="data/multiturn/simulated", help="Path to synthetic corpus directory")
     parser.add_argument("--compute_on", type=str, required=True, choices=["natural", "synthetic"], help="Which corpus to compute LACER scores on")
     parser.add_argument("--neighbors_path", type=str, required=True, help="Path to pre-computed diversity neighbors JSON")
     parser.add_argument("--output_path", type=str, required=True, help="Output path for LACER results JSON")
@@ -95,8 +95,8 @@ def main():
     utils.log(f"Loaded {len(neighbors_data)} paper records")
 
     if args.compute_on == "synthetic":
-        utils.log(f"Loading synthetic corpus from data/multiturn/{args.synthetic_dir}")
-        synthetic_path = os.path.join("data/multiturn", args.synthetic_dir, "all_papers.json")
+        utils.log(f"Loading synthetic corpus from {args.synthetic_dir}")
+        synthetic_path = os.path.join(args.synthetic_dir, "all_papers.json")
         all_papers, _ = utils.load_json(synthetic_path)
         all_papers_dict = {p["corpus_id"]: p for p in all_papers}
     else:

@@ -65,7 +65,7 @@ def main():
     parser = argparse.ArgumentParser(description="Plot local clustering coefficient of target papers over time.")
     parser.add_argument("--hf_repo_id", type=str, default="allenai/prescience", help="HuggingFace repo (natural corpus)")
     parser.add_argument("--split", type=str, default="test", choices=["train", "test"], help="Dataset split")
-    parser.add_argument("--synthetic_dir", type=str, default="simulated", help="Synthetic experiment directory under data/multiturn/")
+    parser.add_argument("--synthetic_dir", type=str, default="data/multiturn/simulated", help="Path to synthetic corpus directory")
     parser.add_argument("--output_path", type=str, default="figures/multiturn/local_clustering.png", help="Path to save the figure")
     args = parser.parse_args()
 
@@ -73,7 +73,7 @@ def main():
     all_papers_nat, _, _ = utils.load_corpus(hf_repo_id=args.hf_repo_id, split=args.split, embeddings_dir=None, embedding_type=None, load_sd2publications=False)
 
     utils.log("Loading synthetic corpus")
-    all_papers_syn = utils.load_json(f"data/multiturn/{args.synthetic_dir}/all_papers.json")[0]
+    all_papers_syn = utils.load_json(os.path.join(args.synthetic_dir, "all_papers.json"))[0]
 
     all_papers_nat_dict = {paper["corpus_id"]: paper for paper in all_papers_nat}
     all_papers_syn_dict = {paper["corpus_id"]: paper for paper in all_papers_syn}

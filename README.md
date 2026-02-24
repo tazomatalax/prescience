@@ -276,7 +276,7 @@ The paper uses `embedding_fusion` for both collaborator and prior work predictio
 ```bash
 # Compute diversity for natural and synthetic corpora
 python3 -m multiturn.analysis.compute_author_diversity --compute_on natural --role target --output_path data/multiturn/analysis/author_diversity_natural.json
-python3 -m multiturn.analysis.compute_author_diversity --compute_on synthetic --synthetic_dir simulated --role synthetic --output_path data/multiturn/analysis/author_diversity_synthetic.json
+python3 -m multiturn.analysis.compute_author_diversity --compute_on synthetic --synthetic_dir data/multiturn/simulated --role synthetic --output_path data/multiturn/analysis/author_diversity_synthetic.json
 
 # Plot
 python3 -m multiturn.analysis.plot_author_diversity --natural_path data/multiturn/analysis/author_diversity_natural.json --synthetic_paths data/multiturn/analysis/author_diversity_synthetic.json

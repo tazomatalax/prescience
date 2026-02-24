@@ -29,7 +29,7 @@ def main():
     parser = argparse.ArgumentParser(description="Compute cumulative author diversity over time.")
     parser.add_argument("--hf_repo_id", type=str, default="allenai/prescience", help="HuggingFace repo (natural corpus)")
     parser.add_argument("--split", type=str, default="test", choices=["train", "test"], help="Dataset split")
-    parser.add_argument("--synthetic_dir", type=str, default="simulated", help="Synthetic corpus directory under data/multiturn/")
+    parser.add_argument("--synthetic_dir", type=str, default="data/multiturn/simulated", help="Path to synthetic corpus directory")
     parser.add_argument("--compute_on", type=str, required=True, choices=["natural", "synthetic"], help="Which corpus to compute diversity on")
     parser.add_argument("--role", type=str, required=True, help="Role to filter papers by (e.g., target, synthetic)")
     parser.add_argument("--output_path", type=str, required=True, help="Output JSON path")
@@ -37,8 +37,8 @@ def main():
     args = parser.parse_args()
 
     if args.compute_on == "synthetic":
-        utils.log(f"Loading synthetic corpus from data/multiturn/{args.synthetic_dir}")
-        synthetic_path = os.path.join("data/multiturn", args.synthetic_dir, "all_papers.json")
+        utils.log(f"Loading synthetic corpus from {args.synthetic_dir}")
+        synthetic_path = os.path.join(args.synthetic_dir, "all_papers.json")
         all_papers, _ = utils.load_json(synthetic_path)
         all_papers_dict = {p["corpus_id"]: p for p in all_papers}
     else:
@@ -53,8 +53,8 @@ def main():
 
     ref_counts_per_bucket = None
     if args.compute_on == "natural":
-        utils.log(f"Loading synthetic reference corpus from data/multiturn/{args.synthetic_dir}")
-        synthetic_path = os.path.join("data/multiturn", args.synthetic_dir, "all_papers.json")
+        utils.log(f"Loading synthetic reference corpus from {args.synthetic_dir}")
+        synthetic_path = os.path.join(args.synthetic_dir, "all_papers.json")
         ref_papers, _ = utils.load_json(synthetic_path)
         ref_papers_dict = {p["corpus_id"]: p for p in ref_papers}
         ref_targets = filter_by_role(ref_papers_dict, "synthetic")
