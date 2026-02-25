@@ -1,8 +1,8 @@
 <div align="center">
 
-# PreScience
+# PreScience — Forestry Edition
 
-**A Benchmark for Forecasting Scientific Contributions**
+**A Benchmark for Forecasting Forestry Research Directions**
 
 [Paper](https://arxiv.org/abs/2602.20459) | [Dataset](https://huggingface.co/datasets/allenai/prescience)
 
@@ -13,21 +13,23 @@
 
 ## Overview
 
-Can AI systems trained on the scientific record up to a fixed point in time forecast the scientific advances that follow? PreScience decomposes the research process into four interdependent generative tasks and evaluates models on a curated dataset of 98,000 AI-related arXiv papers (Oct 2023 -- Oct 2025) with disambiguated author identities, temporally aligned scholarly metadata, and a structured graph of 502,000 total papers. We decompose the prediction of a single scientific advance into the following four interdependent prediction problems:
+This fork of PreScience adapts the benchmark to use **forestry and forest ecology research** as the document source, with the central task reframed as **generating future research directions from prior forestry research**. Instead of predicting the title and abstract of a specific follow-up AI paper, the generation task now asks models to synthesise a set of background forestry documents and propose a substantive, actionable research direction that the field could pursue next.
+
+The original PreScience benchmark decomposes the research process into four interdependent generative tasks and evaluates models on a curated dataset of 98,000 AI-related arXiv papers (Oct 2023 -- Oct 2025) with disambiguated author identities, temporally aligned scholarly metadata, and a structured graph of 502,000 total papers. The same four-task structure is retained here, but all prompts, few-shot examples, and corpus-building defaults have been updated for the forestry domain.
 
 <img width="721" height="326" alt="image" src="https://github.com/user-attachments/assets/1698f74b-fd49-4312-a39c-5429b362a3ed" />
 
 
 | Task | Description | Metrics |
 |------|-------------|---------|
-| Collaborator Prediction | Predict the remaining authors on a future paper given a seed author | nDCG, R-Precision |
-| Prior Work Selection | Predict the key references of a future paper given its authors | nDCG, R-Precision |
-| Contribution Generation | Generate a paper's title and abstract given its authors and key references | LACERScore, ROUGE-L, BERTScore |
+| Collaborator Prediction | Predict the remaining authors on a future forestry paper given a seed author | nDCG, R-Precision |
+| Prior Work Selection | Predict the key references of a future forestry paper given its authors | nDCG, R-Precision |
+| Research Direction Generation | Generate a research direction title and description from a set of prior forestry papers | LACERScore, ROUGE-L, BERTScore |
 | Impact Prediction | Predict a paper's 12-month cumulative citation count | MAE, Pearson, Spearman |
 
 ## Dataset
 
-The dataset is hosted on [HuggingFace](https://huggingface.co/datasets/allenai/prescience) and contains 98k target papers across train (Oct 2023--2024) and test (Oct 2024--2025) splits, along with 400k+ companion papers (references and author publication histories). See the [dataset card](https://huggingface.co/datasets/allenai/prescience) for full schema and statistics.
+The default dataset is the original PreScience corpus hosted on [HuggingFace](https://huggingface.co/datasets/allenai/prescience). To build a forestry-specific corpus from scratch see [Building a Forestry Corpus](#building-a-forestry-corpus-from-scratch).
 
 ## Setup
 
@@ -53,7 +55,7 @@ prescience/
 ├── task_coauthor_prediction/     # Collaborator prediction baselines, evaluation and analyses
 ├── task_priorwork_prediction/    # Prior work selection baselines, evaluation and analyses
 ├── task_followup_prediction/
-│   ├── generate/                 # Contribution generation baselines (GPT, Claude, OLMo, LLaMA)
+│   ├── generate/                 # Research direction generation baselines (GPT, Claude, OLMo, LLaMA)
 │   └── evaluate/                 # LACERScore, BERTScore, ROUGE-L evaluation
 │   └── analysis/
 ├── task_impact_prediction/       # Impact prediction baselines, evaluation and analyses
@@ -348,6 +350,59 @@ python3 -m dataset.embeddings.compute_paper_embeddings --split train --embedding
 ```
 
 </details>
+
+
+## Building a Forestry Corpus from Scratch
+
+The `dataset.corpus.download_target_papers` script supports three modes for assembling a forestry-specific corpus.
+
+### Option A — Semantic Scholar keyword search (recommended)
+
+Most forestry papers are not on arXiv. The easiest way to obtain a forestry corpus is a direct keyword search against the Semantic Scholar API:
+
+```bash
+export S2_API_KEY=<your_key>
+
+# Download up to 10,000 forestry papers published between 2015 and 2024
+python3 -m dataset.corpus.download_target_papers \
+  --s2_keywords \
+  --start_date 2015-01-01 --end_date 2024-01-01 \
+  --s2_max_results 10000 \
+  --output_dir data/corpus/forestry/train --overwrite
+
+# Use a custom query to focus on a narrower sub-topic
+python3 -m dataset.corpus.download_target_papers \
+  --s2_keywords \
+  --s2_query "forest carbon sequestration OR forest biomass estimation OR forest inventory remote sensing" \
+  --start_date 2015-01-01 --end_date 2024-01-01 \
+  --output_dir data/corpus/forestry/train --overwrite
+```
+
+### Option B — Pre-downloaded JSONL file
+
+If you have already collected forestry papers (e.g., via a literature database export), supply them as a JSONL file where each line is a JSON object with at minimum the fields `corpus_id`, `title`, `abstract`, and `date` (YYYY-MM-DD):
+
+```bash
+python3 -m dataset.corpus.download_target_papers \
+  --local_papers_path data/my_forestry_papers.jsonl \
+  --start_date 2015-01-01 --end_date 2024-01-01 \
+  --output_dir data/corpus/forestry/train --overwrite
+```
+
+### Option C — arXiv snapshot (ecology / remote sensing categories)
+
+A subset of forestry-adjacent research appears on arXiv. The script defaults to the most relevant arXiv categories (`q-bio.PE`, `eess.SP`, `cs.CV`, `eess.IV`) when neither `--s2_keywords` nor `--local_papers_path` is specified:
+
+```bash
+python3 -m dataset.corpus.download_target_papers \
+  --arxiv_snapshot_path data/arxiv_snapshot/arxiv-metadata-oai-snapshot.json \
+  --start_date 2015-01-01 --end_date 2024-01-01 \
+  --output_dir data/corpus/forestry/train --overwrite
+```
+
+### Continuing the pipeline
+
+After Stage 1, run Stages 2–7 exactly as in the standard pipeline above, pointing `--input_dir` / `--output_dir` at your forestry corpus directory.
 
 
 ## Citation
